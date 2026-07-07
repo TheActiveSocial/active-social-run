@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D183F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AS Runs">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Active Social — Pickup Run Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600;800&family=Source+Sans+3:wght@400;600;700;900&family=Permanent+Marker&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --orange:#F58223; --orange-l:#F89A55;
+    --bg0:#070d22; --bg1:#0c1530; --panel:#111c3d; --panel2:#16234a;
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.16);
+    --txt:#eef1f8; --mut:#8a93b2; --ink:#0b1228; --green:#2FC56E;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:"Source Sans 3",Verdana,sans-serif;background:linear-gradient(180deg,var(--bg1),var(--bg0));color:var(--txt);min-height:100vh;-webkit-font-smoothing:antialiased;}
+  .app{max-width:480px;margin:0 auto;padding:18px 16px 150px;}
+
+  .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .brand{font-family:"Permanent Marker",cursive;font-size:23px;color:#fff;}
+  .pill{font-size:11px;font-weight:900;letter-spacing:2px;color:var(--orange);background:rgba(245,130,35,.12);border:1px solid rgba(245,130,35,.4);padding:5px 10px;border-radius:7px;}
+
+  .sechead{font-size:12px;font-weight:900;letter-spacing:2px;color:var(--mut);text-transform:uppercase;margin:0 2px 10px;}
+
+  /* saved runs */
+  .saved{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .savedchip{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line2);border-radius:999px;padding:8px 8px 8px 13px;font-size:13px;font-weight:700;cursor:pointer;}
+  .savedchip .x{width:20px;height:20px;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#ff9b9b;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .saved .none{font-size:13px;color:var(--mut);font-style:italic;}
+  .savebtn{width:100%;border:1px solid var(--line2);background:var(--panel);color:var(--orange-l);border-radius:11px;padding:11px;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:18px;}
+
+  .titlefield{width:100%;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:13px 14px;font-size:18px;font-weight:800;font-family:inherit;color:#fff;margin-bottom:16px;}
+
+  .timing{background:var(--panel);border:1px solid var(--line2);border-radius:14px;padding:14px;margin-bottom:18px;}
+  .arriverow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .arriverow label{font-size:14px;font-weight:800;color:var(--txt);}
+  .arriverow input[type=time]{background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:9px 11px;font-size:16px;font-family:"JetBrains Mono";color:#fff;}
+  .baserow{display:flex;gap:8px;}
+  .basebtn{flex:1;background:var(--panel2);border:1px solid var(--line2);color:var(--txt);border-radius:10px;padding:11px 8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;line-height:1.3;}
+  .basebtn small{display:block;color:var(--mut);font-size:11px;font-weight:600;margin-top:2px;}
+  .basebtn.active{border-color:var(--orange);background:rgba(245,130,35,.12);color:#fff;}
+  .tnote{font-size:12px;color:var(--mut);margin-top:11px;line-height:1.5;}
+
+  .card{background:linear-gradient(180deg,var(--panel),var(--bg1));border:1px solid var(--line);border-top:4px solid var(--orange);border-radius:16px;padding:16px;margin-bottom:22px;}
+  .leadout{background:rgba(245,130,35,.1);border:1px solid rgba(245,130,35,.3);border-radius:12px;padding:13px 15px;margin-bottom:16px;}
+  .leadout .big{font-family:"JetBrains Mono";font-weight:800;font-size:30px;color:var(--orange);line-height:1;}
+  .leadout .lab{font-size:12px;font-weight:900;letter-spacing:2px;color:var(--mut);text-transform:uppercase;}
+  .leadout .arr{font-size:13px;color:var(--mut);font-weight:600;margin-top:8px;}
+  .leadout .arr b{color:var(--txt);font-family:"JetBrains Mono";}
+
+  .stoprow{display:flex;gap:12px;position:relative;padding-bottom:15px;}
+  .stoprow:last-child{padding-bottom:0;}
+  .rail{display:flex;flex-direction:column;align-items:center;flex-shrink:0;}
+  .num{width:30px;height:30px;border-radius:50%;background:var(--orange);color:var(--ink);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;z-index:1;}
+  .num.start{background:#fff;} .num.end{background:var(--green);}
+  .line{width:2px;flex:1;background:repeating-linear-gradient(180deg,var(--line2) 0 5px,transparent 5px 10px);margin:3px 0;}
+  .stoprow:last-child .line{display:none;}
+  .info{flex:1;min-width:0;padding-top:3px;}
+  .lbl{font-weight:800;font-size:16px;display:flex;align-items:baseline;gap:8px;}
+  .lbl .tm{font-family:"JetBrains Mono";font-size:13px;color:var(--orange-l);font-weight:700;margin-left:auto;}
+  .addr{font-size:13px;color:var(--mut);margin-top:2px;line-height:1.4;}
+
+  .editor{display:flex;flex-direction:column;gap:11px;margin-bottom:8px;}
+  .erow{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:11px;}
+  .erow .top{display:flex;gap:8px;margin-bottom:8px;}
+  .erow input{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 11px;font-size:15px;font-family:inherit;color:#fff;width:100%;}
+  .erow input::placeholder{color:#67708f;}
+  .erow .addrin{margin-bottom:8px;}
+  .legrow{display:flex;align-items:center;gap:8px;}
+  .legrow .lbl2{font-size:12px;color:var(--mut);font-weight:600;flex:1;}
+  .erow .minin{width:70px;font-family:"JetBrains Mono";text-align:center;}
+  .erow .ctrls{display:flex;gap:6px;justify-content:flex-end;margin-top:9px;}
+  .ic{width:38px;height:38px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--mut);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .ic.del{color:#ff7a7a;border-color:rgba(255,122,122,.3);}
+  .ic:active{transform:scale(.94);}
+
+  .addbtn{width:100%;border:1.5px dashed var(--line2);background:transparent;color:var(--orange-l);border-radius:12px;padding:13px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;margin-bottom:8px;}
+  .hint{font-size:12.5px;color:var(--mut);text-align:center;line-height:1.5;padding:6px 8px 0;}
+
+  .dock{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,rgba(7,13,34,.55),var(--bg0) 45%);backdrop-filter:blur(8px);border-top:1px solid var(--line2);padding:13px 16px;}
+  .dockin{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:9px;}
+  .cta{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--orange);color:var(--ink);font-weight:900;font-size:17px;padding:16px;border-radius:14px;text-decoration:none;border:none;cursor:pointer;}
+  .cta svg{width:22px;height:22px;}
+  .cta.disabled{background:#33405f;color:var(--mut);pointer-events:none;}
+  .row2{display:flex;gap:9px;}
+  .sbtn{flex:1;background:var(--panel2);border:1px solid var(--line2);color:#fff;font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer;font-family:inherit;}
+  .sbtn:active{transform:scale(.98);}
+  .toast{position:fixed;left:50%;bottom:132px;transform:translateX(-50%) translateY(20px);background:var(--green);color:var(--ink);font-weight:800;padding:11px 18px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:30;font-size:14px;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="head">
+    <div class="brand">Active Social</div>
+    <span class="pill">RUN BUILDER</span>
+  </div>
+
+  <div class="sechead">Saved runs</div>
+  <div class="saved" id="saved"></div>
+  <button class="savebtn" id="savebtn">Save this run</button>
+
+  <input class="titlefield" id="title" placeholder="Run name (e.g. Wednesday, Logan)" value="">
+
+  <div class="sechead">Timing</div>
+  <div class="timing">
+    <div class="arriverow">
+      <label for="arriveby">Arrive by</label>
+      <input type="time" id="arriveby" value="10:25">
+      <label>at</label>
+    </div>
+    <div class="baserow">
+      <button class="basebtn" data-base="1">Base 1<small>Adamstown</small></button>
+      <button class="basebtn" data-base="2">Base 2<small>Thornton</small></button>
+    </div>
+    <div class="tnote">Set the arrive-by and the tool works backwards to a leave time. The minutes on each stop are pickup plus drive, so pad a slow stop such as a school office. Grab the real minutes from the Maps route once and they will barely change.</div>
+  </div>
+
+  <div class="sechead">The run</div>
+  <div class="card" id="preview"></div>
+
+  <div class="sechead">Edit stops (in order)</div>
+  <div class="editor" id="editor"></div>
+  <button class="addbtn" id="addbtn">+ Add a pickup</button>
+  <div class="hint">First stop is the driver's start. Pickups follow in order. The base is set above.</div>
+
+</div>
+
+<div class="dock">
+  <div class="dockin">
+    <a class="cta" id="cta" href="#" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+      Open the whole run in Google Maps
+    </a>
+    <div class="row2">
+      <button class="sbtn" id="copylink">Copy link</button>
+      <button class="sbtn" id="copymsg">Copy message for staff</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+  const BASES = {
+    "1":{label:'Base: Adamstown', address:'5/10 William St, Adamstown NSW 2289'},
+    "2":{label:'Base: Thornton', address:'18 Hartley Drive, Thornton NSW 2322'}
+  };
+  let baseKey = "2";
+  let base = Object.assign({}, BASES[baseKey]);
+  let stops = [
+    {label:'Start',  address:'', toNext:15},
+    {label:'',       address:'', toNext:8},
+    {label:'',       address:'', toNext:8}
+  ];
+
+  const $ = id => document.getElementById(id);
+  const enc = s => encodeURIComponent((s||'').trim());
+  const escAttr = s => (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+
+  // device-local storage, safely guarded
+  const store = {
+    all(){ try{ return JSON.parse(localStorage.getItem('as_runs')||'[]'); }catch(e){ return []; } },
+    save(list){ try{ localStorage.setItem('as_runs', JSON.stringify(list)); }catch(e){} }
+  };
+
+  const parseHM = t => { if(!t) return null; const p=t.split(':'); return (+p[0])*60 + (+p[1]); };
+  function fmt(mins){
+    let m = ((Math.round(mins)%1440)+1440)%1440;
+    let h = Math.floor(m/60), mm = m%60, ap = h<12?'am':'pm', h12 = h%12; if(h12===0) h12=12;
+    return h12 + ':' + String(mm).padStart(2,'0') + ap;
+  }
+  function times(){
+    const arrBase = parseHM($('arriveby').value);
+    const arr = new Array(stops.length);
+    if(arrBase===null) return {arr:[], arrBase:null, leaveBy:null};
+    for(let i=stops.length-1;i>=0;i--){
+      const next = (i===stops.length-1) ? arrBase : arr[i+1];
+      arr[i] = next - (Number(stops[i].toNext)||0);
+    }
+    return {arr, arrBase, leaveBy:arr[0]};
+  }
+
+  function mapsUrl(){
+    const all = stops.filter(s=>s.address && s.address.trim());
+    if(!base.address || all.length<1) return null;
+    let u = 'https://www.google.com/maps/dir/?api=1&origin=' + enc(all[0].address)
+          + '&destination=' + enc(base.address) + '&travelmode=driving';
+    const mid = all.slice(1).map(s=>enc(s.address)).join('|');
+    if(mid) u += '&waypoints=' + mid;
+    return u;
+  }
+
+  function buildMessage(){
+    const t = $('title').value || 'Pickup Run';
+    const T = times();
+    let m = '\u{1F697} ' + t + '\n\n';
+    if(T.leaveBy!==null) m += '\u23F0 Leave by ' + fmt(T.leaveBy) + '\n';
+    if(T.arrBase!==null) m += '\u{1F3C1} Arrive ' + base.label + ' by ' + fmt(T.arrBase) + '\n';
+    m += '\n';
+    stops.forEach((s,i)=>{
+      if(!(s.address && s.address.trim())) return;
+      const tm = T.arr.length ? (i===0 ? '  \u00B7  leave ' + fmt(T.arr[i]) : '  \u00B7  be there ~' + fmt(T.arr[i])) : '';
+      const pre = i===0 ? '\u{1F4CD} Start' : i + '. ' + (s.label||'Pickup');
+      m += pre + ': ' + s.address + tm + '\n';
+    });
+    m += '\u{1F3C1} ' + base.label + ': ' + base.address + (T.arrBase!==null ? '  \u00B7  arrive by ' + fmt(T.arrBase) : '') + '\n';
+    const u = mapsUrl();
+    if(u) m += '\nTap to navigate the whole run:\n' + u;
+    return m;
+  }
+
+  function renderPreview(){
+    const T = times();
+    let head = '';
+    if(T.leaveBy!==null){
+      head = '<div class="leadout"><div class="lab">Leave by</div><div class="big">' + fmt(T.leaveBy) + '</div>'
+        + '<div class="arr">Arrive ' + escAttr(base.label) + ' by <b>' + (T.arrBase!==null?fmt(T.arrBase):'--') + '</b></div></div>';
+    }
+    const rows = stops.map((s,i)=>{
+      const cls = i===0 ? 'start' : '';
+      const tm = T.arr.length ? (i===0 ? 'leave ' + fmt(T.arr[i]) : fmt(T.arr[i])) : '';
+      return '<div class="stoprow"><div class="rail"><div class="num ' + cls + '">' + (i+1)
+        + '</div><div class="line"></div></div><div class="info"><div class="lbl">' + escAttr(s.label||'Stop')
+        + (tm?'<span class="tm">' + tm + '</span>':'') + '</div><div class="addr">' + escAttr(s.address||'Address needed') + '</div></div></div>';
+    }).join('');
+    const baseRow = '<div class="stoprow"><div class="rail"><div class="num end">\u2713</div></div>'
+      + '<div class="info"><div class="lbl">' + escAttr(base.label)
+      + (T.arrBase!==null?'<span class="tm">' + fmt(T.arrBase) + '</span>':'') + '</div>'
+      + '<div class="addr">' + escAttr(base.address) + '</div></div></div>';
+    $('preview').innerHTML = head + rows + baseRow;
+    const u = mapsUrl(), cta = $('cta');
+    if(u){ cta.href=u; cta.classList.remove('disabled'); } else { cta.href='#'; cta.classList.add('disabled'); }
+    document.querySelectorAll('.basebtn').forEach(b=>b.classList.toggle('active', b.dataset.base===baseKey));
+  }
+
+  function renderEditor(){
+    $('editor').innerHTML = stops.map((s,i)=>{
+      const legLabel = i===0 ? 'Minutes to first pickup' : (i===stops.length-1 ? 'Minutes to base' : 'Minutes to next pickup');
+      const namePh = i===0 ? 'Start' : 'Name';
+      const addrPh = i===0 ? "Driver's start address" : 'Full address';
+      return '<div class="erow" data-i="' + i + '">'
+        + '<div class="top"><input class="lblin" data-f="label" placeholder="' + namePh + '" value="' + escAttr(s.label) + '"></div>'
+        + '<input class="addrin" data-f="address" placeholder="' + addrPh + '" value="' + escAttr(s.address) + '">'
+        + '<div class="legrow"><span class="lbl2">' + legLabel + ' (pickup + drive)</span>'
+        + '<input class="minin" data-f="toNext" type="number" min="0" value="' + escAttr(String(s.toNext)) + '"></div>'
+        + '<div class="ctrls">'
+        + '<button class="ic" data-act="up">\u2191</button>'
+        + '<button class="ic" data-act="down">\u2193</button>'
+        + '<button class="ic del" data-act="del">\u2715</button>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  function renderSaved(){
+    const list = store.all();
+    $('saved').innerHTML = list.length
+      ? list.map((r,i)=>'<span class="savedchip" data-load="' + i + '">' + escAttr(r.name) + '<button class="x" data-del="' + i + '">\u2715</button></span>').join('')
+      : '<span class="none">No saved runs yet. Build one, then Save.</span>';
+  }
+
+  // editor events
+  $('editor').addEventListener('input', e=>{
+    const f = e.target.dataset.f; if(!f) return;
+    stops[+e.target.closest('.erow').dataset.i][f] = e.target.value;
+    renderPreview();
+  });
+  $('editor').addEventListener('click', e=>{
+    const btn = e.target.closest('button[data-act]'); if(!btn) return;
+    const i = +btn.closest('.erow').dataset.i, act = btn.dataset.act;
+    if(act==='del'){ if(stops.length>1) stops.splice(i,1); }
+    else { const j = i + (act==='up'?-1:1); if(j>=0 && j<stops.length){ const t=stops[i]; stops[i]=stops[j]; stops[j]=t; } }
+    renderEditor(); renderPreview();
+  });
+  $('addbtn').addEventListener('click', ()=>{ stops.push({label:'', address:'', toNext:8}); renderEditor(); renderPreview(); });
+
+  // saved-run events
+  $('saved').addEventListener('click', e=>{
+    const load = e.target.closest('[data-load]'), del = e.target.closest('[data-del]');
+    const list = store.all();
+    if(del){ e.stopPropagation(); list.splice(+del.dataset.del,1); store.save(list); renderSaved(); return; }
+    if(load){
+      const r = list[+load.dataset.load]; if(!r) return;
+      $('title').value = r.title||r.name||'';
+      $('arriveby').value = r.arriveBy||'10:25';
+      baseKey = r.baseKey||'2'; base = Object.assign({},BASES[baseKey]);
+      stops = (r.stops||[]).map(s=>Object.assign({},s));
+      renderEditor(); renderPreview(); toast('Loaded');
+    }
+  });
+  $('savebtn').addEventListener('click', ()=>{
+    const name = ($('title').value||'').trim() || 'Untitled run';
+    const list = store.all();
+    const rec = { name, title:$('title').value, arriveBy:$('arriveby').value, baseKey, stops };
+    const idx = list.findIndex(r=>r.name===name);
+    if(idx>=0) list[idx]=rec; else list.push(rec);
+    store.save(list); renderSaved(); toast('Saved');
+  });
+
+  document.querySelectorAll('.basebtn').forEach(b=>{
+    b.addEventListener('click', ()=>{ baseKey=b.dataset.base; base=Object.assign({},BASES[baseKey]); renderPreview(); });
+  });
+  $('arriveby').addEventListener('input', renderPreview);
+  $('title').addEventListener('input', renderPreview);
+
+  function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1500); }
+  function copyText(txt,label){
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast(label), ()=>fb(txt,label)); }
+    else fb(txt,label);
+  }
+  function fb(txt,label){ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');}catch(e){} ta.remove(); toast(label); }
+  $('copylink').addEventListener('click', ()=>{ const u=mapsUrl(); u?copyText(u,'Link copied'):toast('Add a stop'); });
+  $('copymsg').addEventListener('click', ()=>copyText(buildMessage(),'Message copied'));
+
+  renderSaved(); renderEditor(); renderPreview();
+</script>
+</body>
+</html>
