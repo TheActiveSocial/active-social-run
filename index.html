@@ -12,12 +12,58 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600;800&family=Source+Sans+3:wght@400;600;700;900&family=Permanent+Marker&display=swap" rel="stylesheet">
+<!--
+  ============================================================================
+  ACTIVE SOCIAL — PICKUP RUN BUILDER
+  ============================================================================
+  Single-file static tool. No backend, no server, no database.
+  All "Saved runs" data lives in this browser's localStorage only — it never
+  leaves the device. This is deliberate: it keeps participant pickup
+  addresses off any server, off any log, off any third party except Google
+  Maps itself when a driver actually opens a route.
+
+  WHAT'S NEW IN THIS VERSION (auto-calculated pickup times):
+  - A "Recalculate times from map" button under Timing.
+  - On click, it loads the Google Maps JavaScript API (lazily — only on
+    click, never on page load) and calls DirectionsService to get real
+    drive times between your stops in order.
+  - Each leg's drive time gets a fixed +3 minute buffer added automatically
+    (covers the actual pickup/knock-on-door time, not just driving) before
+    filling the "Minutes to..." field for that stop.
+  - Every field remains manually editable afterwards — this is a fast
+    starting point, not a lock. Known slow stops (e.g. a school office)
+    should still be nudged up manually.
+  - No address, name, or route data is ever sent anywhere except directly
+    from this browser to Google's Directions service — same as the
+    existing "Open in Google Maps" button already does. Nothing new is
+    logged, stored server-side, or sent to Active Social's own systems.
+
+  SETUP REQUIRED BEFORE THIS FEATURE WORKS:
+  1. A Google Cloud project with billing enabled.
+  2. The "Directions API" (Legacy) enabled on that project — if your
+     project's API Library only offers "Routes API" instead, STOP and flag
+     this back before using it; the request/response shape is different
+     and this code will need adjusting.
+  3. An API key, RESTRICTED to:
+       - Application restriction: HTTP referrer = runs.theactivesocial.com.au/*
+       - API restriction: Directions API only (and Maps JavaScript API,
+         which the browser loader needs to initialise the library)
+     An unrestricted key pasted into client-side code is a genuine security
+     problem — anyone can view-source this page and lift it.
+  4. Paste that restricted key into GOOGLE_MAPS_API_KEY below, replacing
+     the placeholder. Do not commit a real key to any public repo.
+
+  BUFFER_MINUTES below controls the automatic padding added to every leg.
+  Change it in one place if the +3 minute default needs adjusting later.
+  ============================================================================
+-->
 <style>
   :root{
     --orange:#F58223; --orange-l:#F89A55;
     --bg0:#070d22; --bg1:#0c1530; --panel:#111c3d; --panel2:#16234a;
     --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.16);
     --txt:#eef1f8; --mut:#8a93b2; --ink:#0b1228; --green:#2FC56E;
+    --red:#ff7a7a;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:"Source Sans 3",Verdana,sans-serif;background:linear-gradient(180deg,var(--bg1),var(--bg0));color:var(--txt);min-height:100vh;-webkit-font-smoothing:antialiased;}
@@ -47,6 +93,14 @@
   .basebtn small{display:block;color:var(--mut);font-size:11px;font-weight:600;margin-top:2px;}
   .basebtn.active{border-color:var(--orange);background:rgba(245,130,35,.12);color:#fff;}
   .tnote{font-size:12px;color:var(--mut);margin-top:11px;line-height:1.5;}
+
+  .recalcbtn{width:100%;border:1px solid var(--line2);background:var(--panel2);color:var(--orange-l);border-radius:11px;padding:12px;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer;margin-top:12px;}
+  .recalcbtn:active{transform:scale(.98);}
+  .recalcbtn:disabled{opacity:.5;pointer-events:none;}
+  .recalcstatus{font-size:12px;margin-top:8px;line-height:1.5;min-height:16px;}
+  .recalcstatus.ok{color:var(--green);}
+  .recalcstatus.err{color:var(--red);}
+  .recalcstatus.busy{color:var(--mut);}
 
   .card{background:linear-gradient(180deg,var(--panel),var(--bg1));border:1px solid var(--line);border-top:4px solid var(--orange);border-radius:16px;padding:16px;margin-bottom:22px;}
   .leadout{background:rgba(245,130,35,.1);border:1px solid rgba(245,130,35,.3);border-radius:12px;padding:13px 15px;margin-bottom:16px;}
@@ -122,6 +176,8 @@
       <button class="basebtn" data-base="2">Base 2<small>Thornton</small></button>
     </div>
     <div class="tnote">Set the arrive-by and the tool works backwards to a leave time. The minutes on each stop are pickup plus drive, so pad a slow stop such as a school office. Grab the real minutes from the Maps route once and they will barely change.</div>
+    <button class="recalcbtn" id="recalcbtn">Recalculate times from map</button>
+    <div class="recalcstatus" id="recalcstatus"></div>
   </div>
 
   <div class="sechead">The run</div>
@@ -150,6 +206,24 @@
 <div class="toast" id="toast">Copied</div>
 
 <script>
+  // ==========================================================================
+  // CONFIG — edit these two values, nothing else in this block
+  // ==========================================================================
+
+  // Paste your RESTRICTED Google Maps API key here. Must be locked to:
+  //   - HTTP referrer: runs.theactivesocial.com.au/*
+  //   - API restriction: Directions API (+ Maps JavaScript API)
+  // An unrestricted key here is a real security problem — this file's
+  // source is publicly viewable in any browser.
+  const GOOGLE_MAPS_API_KEY = "AIzaSyBgvZF5ZLm3xMmGhbWt-CVRfIOTo0BSjkY";
+
+  // Fixed buffer added to every leg's raw drive time, in minutes.
+  // Covers the actual pickup/knock-on-door time, not just driving.
+  // Change this one number if the default ever needs adjusting.
+  const BUFFER_MINUTES = 3;
+
+  // ==========================================================================
+
   const BASES = {
     "1":{label:'Base: Adamstown', address:'5/10 William St, Adamstown NSW 2289'},
     "2":{label:'Base: Thornton', address:'18 Hartley Drive, Thornton NSW 2322'}
@@ -319,6 +393,106 @@
   function fb(txt,label){ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');}catch(e){} ta.remove(); toast(label); }
   $('copylink').addEventListener('click', ()=>{ const u=mapsUrl(); u?copyText(u,'Link copied'):toast('Add a stop'); });
   $('copymsg').addEventListener('click', ()=>copyText(buildMessage(),'Message copied'));
+
+  // ==========================================================================
+  // AUTO-CALCULATE TIMES — loads Google Maps only when the button is clicked
+  // ==========================================================================
+
+  let mapsApiLoadPromise = null;
+
+  function loadGoogleMapsApi(){
+    if(mapsApiLoadPromise) return mapsApiLoadPromise;
+    mapsApiLoadPromise = new Promise((resolve, reject)=>{
+      if(window.google && window.google.maps && window.google.maps.DirectionsService){
+        resolve(); return;
+      }
+      if(!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.indexOf('REPLACE_WITH') === 0){
+        reject(new Error('No API key configured. Paste a restricted key into GOOGLE_MAPS_API_KEY at the top of this file.'));
+        return;
+      }
+      const cbName = '__gmapsRecalcReady';
+      window[cbName] = () => resolve();
+      const script = document.createElement('script');
+      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_MAPS_API_KEY) + '&callback=' + cbName;
+      script.async = true;
+      script.onerror = () => reject(new Error('Google Maps script failed to load — check the API key and its referrer restriction.'));
+      document.head.appendChild(script);
+    });
+    return mapsApiLoadPromise;
+  }
+
+  function setRecalcStatus(msg, kind){
+    const el = $('recalcstatus');
+    el.textContent = msg;
+    el.className = 'recalcstatus' + (kind ? ' ' + kind : '');
+  }
+
+  function recalcTimesFromMap(){
+    const btn = $('recalcbtn');
+
+    // Same "which stops count" filter as mapsUrl(), but we keep the
+    // original stop index for each one so results map back correctly.
+    const valid = stops
+      .map((s, i) => ({ s, i }))
+      .filter(x => x.s.address && x.s.address.trim());
+
+    if(!base.address || valid.length < 1){
+      setRecalcStatus('Add at least one stop address first.', 'err');
+      return;
+    }
+
+    btn.disabled = true;
+    setRecalcStatus('Loading map service…', 'busy');
+
+    loadGoogleMapsApi()
+      .then(()=>{
+        setRecalcStatus('Calculating drive times…', 'busy');
+        const directionsService = new google.maps.DirectionsService();
+
+        const origin = valid[0].s.address;
+        const destination = base.address;
+        const waypoints = valid.slice(1).map(x => ({ location: x.s.address, stopover: true }));
+
+        directionsService.route({
+          origin,
+          destination,
+          waypoints,
+          travelMode: google.maps.TravelMode.DRIVING
+        }, (result, status) => {
+          btn.disabled = false;
+
+          if(status !== 'OK' || !result || !result.routes || !result.routes[0]){
+            setRecalcStatus('Could not calculate a route (' + status + '). Check the addresses for typos.', 'err');
+            return;
+          }
+
+          const legs = result.routes[0].legs;
+          if(legs.length !== valid.length){
+            setRecalcStatus('Unexpected response shape — leg count did not match stop count.', 'err');
+            return;
+          }
+
+          // legs[i] corresponds to: valid[i] -> (valid[i+1] or base if last)
+          // which is exactly the "minutes to next" meaning already used
+          // by the toNext field for that stop.
+          legs.forEach((leg, idx) => {
+            const driveMinutes = Math.round(leg.duration.value / 60);
+            const originalIndex = valid[idx].i;
+            stops[originalIndex].toNext = driveMinutes + BUFFER_MINUTES;
+          });
+
+          renderEditor();
+          renderPreview();
+          setRecalcStatus('Updated ' + legs.length + ' leg' + (legs.length===1?'':'s') + ' (drive time + ' + BUFFER_MINUTES + ' min buffer). Adjust any stop manually if needed.', 'ok');
+        });
+      })
+      .catch(err => {
+        btn.disabled = false;
+        setRecalcStatus(err.message || 'Could not load the map service.', 'err');
+      });
+  }
+
+  $('recalcbtn').addEventListener('click', recalcTimesFromMap);
 
   renderSaved(); renderEditor(); renderPreview();
 </script>
